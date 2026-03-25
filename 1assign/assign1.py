@@ -27,7 +27,7 @@ print("Environment ready.")
 
 print("\nLoading and preprocessing data...")
 
-df = pd.read_csv('insurance.csv')
+df = pd.read_csv('/home/ikermorrondo/deepLearning/1assign/insurance.csv')
 
 # Transformamos categorías en columnas de 0 y 1 ya que nuestro modelo no puede trabajar con texto porque las redes neuronales trabajan con números, no con texto.
 df = pd.get_dummies(df, columns=['sex', 'smoker', 'region'], drop_first=True)   #el drop_first=True es para evitar redundacia, es decir que si no es hombre, entonces es mujer, si no es fumador, entonces es no fumador, etc.
