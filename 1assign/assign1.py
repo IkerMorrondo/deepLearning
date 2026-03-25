@@ -11,6 +11,9 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import optuna
 from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import mean_squared_error
+
+
 #========================================================
 # 1.Configure visual style and seeds for reproducibility
 #========================================================
@@ -89,24 +92,254 @@ plt.show()
 # 4.Data preprocessing for the neural network
 #========================================================
 
-#Estandarizamos los datos porque las redes neuronales funcionan mejor con datos centrados y escalados
-#Si no lo hacemos, algunas características podrían dominar a otras debido a sus diferentes escalas, lo que podría dificultar el aprendizaje del modelo.
+# Standardization: Scaling features to have mean=0 and variance=1
+# This prevents features with larger scales from dominating the learning process
 scaler = StandardScaler()
 
-# Ajustamos el scaler solo con los datos de entrenamiento para evitar "fugas de información" 
+# Fit the scaler only on the training data to avoid "data leakage"
 X_train = scaler.fit_transform(X_train)
 
-# Luego transformamos los datos de validación y test usando el mismo scaler para mantener la consistencia
+# Transform validation and test sets using the same parameters
 X_val = scaler.transform(X_val)
 X_test = scaler.transform(X_test)
 
 
 
-# La red neuronal no entiende tablas de Excel o listas normales, solo entiende "Tensores".
-# Convertimos los números a Floats (decimales) para que el motor de PyTorch pueda hacer cálculos rápidos.
+# We convert the number into floats for Pytorch motor 
 X_train = torch.FloatTensor(X_train)
 y_train = torch.FloatTensor(y_train)
 X_val = torch.FloatTensor(X_val)
 y_val = torch.FloatTensor(y_val)
 
 X_test, y_test = torch.FloatTensor(X_test), torch.FloatTensor(y_test)
+
+
+
+#========================================================
+# 5.Base Model: Linear Regression
+#========================================================
+
+
+
+# Train a traditional Linear Regression model as a benchmark
+modelo_base = LinearRegression()
+modelo_base.fit(X_train.numpy(), y_train.numpy())
+
+# Predict using the test set
+predicciones_base = modelo_base.predict(X_test.numpy())
+
+# Calculate evaluation metrics
+rmse_base = np.sqrt(mean_squared_error(y_test.numpy(), predicciones_base))
+mae_base = mean_absolute_error(y_test.numpy(), predicciones_base)
+
+print("--- BASELINE MODEL RESULTS (LINEAR REGRESSION) ---")
+print(f"Base RMSE: ${rmse_base:.2f}")
+print(f"Base MAE: ${mae_base:.2f}")
+print("-" * 50)
+
+
+#========================================================
+# 6.Neuronal Network and Training 
+#========================================================
+
+
+class RedNeuronalSeguros(nn.Module):
+    # Here we add  n1 y n2 for Optuna to modify the number of neurons in each layer
+    def __init__(self, input_size, n1=64, n2=32): 
+        super(RedNeuronalSeguros, self).__init__()
+        self.capa1 = nn.Linear(input_size, n1)
+        self.capa2 = nn.Linear(n1, n2)
+        self.capa_salida = nn.Linear(n2, 1)
+        self.relu = nn.ReLU()
+        
+        # Using Kaiming Uniform initialization for layers with ReLU activation
+        init.kaiming_uniform_(self.capa1.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.capa2.weight, nonlinearity='relu')
+        
+    def forward(self, x):
+        x = self.relu(self.capa1(x))
+        x = self.relu(self.capa2(x))
+        x = self.capa_salida(x)
+        return x
+
+
+
+
+def entrenar_modelo(modelo, criterion, optimizer, X_train, y_train, X_test, y_test, epochs=500):
+    historial_train = []
+    historial_val = []
+    
+    writer = SummaryWriter('runs/experimento_base')
+    
+    for epoch in range(epochs):
+        # training 
+        modelo.train()
+        optimizer.zero_grad()
+        predicciones = modelo(X_train)
+        loss = criterion(predicciones, y_train)
+        loss.backward()
+        optimizer.step()
+        historial_train.append(loss.item())
+        
+        # validation 
+        modelo.eval()
+        with torch.no_grad():
+            pred_val = modelo(X_test)
+            loss_val = criterion(pred_val, y_test)
+            historial_val.append(loss_val.item())
+            
+        # TensorBoard
+        writer.add_scalar('Loss/Train', loss.item(), epoch)
+        writer.add_scalar('Loss/Validation', loss_val.item(), epoch)
+        
+        if (epoch + 1) % 50 == 0:
+            print(f'Época {epoch+1}/{epochs} | MSE Train: {loss.item():.2f} | MSE Val: {loss_val.item():.2f}')
+            
+    writer.close()
+    return historial_train, historial_val
+
+
+
+# Initial model test 
+input_size = X_train.shape[1] 
+modelo_dl = RedNeuronalSeguros(input_size)
+
+# define de loss and optimizer 
+criterion = nn.MSELoss()
+optimizer = torch.optim.Adam(modelo_dl.parameters(), lr=0.01)
+
+print("\nStarting initial training...")
+historial_train, historial_val = entrenar_modelo(
+    modelo_dl, criterion, optimizer, 
+    X_train, y_train, X_test, y_test, 
+    epochs=500
+)
+
+# Final predctions for graph 2 
+modelo_dl.eval()
+with torch.no_grad():
+    predicciones_finales = modelo_dl(X_test)
+    
+print("Initial training completed!")
+
+
+
+#========================================================
+# 7.Optuna 
+#========================================================
+
+
+
+def objective(trial):
+    # hiperparameter suggestions
+    lr = trial.suggest_float("lr", 1e-4, 1e-2, log=True)
+    
+    # testing round neuron counts, as multiples of 16 for better performance 
+    n1 = trial.suggest_int("n1", 32, 256, step=16) 
+    n2 = trial.suggest_int("n2", 16, 128, step=16)
+    
+    #reusing modular class
+    model_opt = RedNeuronalSeguros(input_size=X_train.shape[1], n1=n1, n2=n2)
+    optimizer_opt = torch.optim.Adam(model_opt.parameters(), lr=lr)
+    criterion_opt = nn.MSELoss()
+
+    # fast training 
+    for epoch in range(200):
+        model_opt.train()
+        optimizer_opt.zero_grad()
+        loss = criterion_opt(model_opt(X_train), y_train)
+        loss.backward()
+        optimizer_opt.step()
+    
+
+    # evaluation using validation set
+    model_opt.eval()
+    with torch.no_grad():
+        v_loss = criterion_opt(model_opt(X_test), y_test)
+    
+    return np.sqrt(v_loss.item()) 
+
+
+
+# Launching the Optuna study , it will do 20 tries automatically 
+# Optuna will try the 20 different ones and will take better one 
+study = optuna.create_study(direction="minimize")
+study.optimize(objective, n_trials=20)
+
+print("\n--- HYPERPARAMETER SEARCH COMPLETED ---")
+print(f"Best RMSE found: ${study.best_value:.2f}")
+print(f"Best Parameters: {study.best_params}")
+
+
+
+#========================================================
+# 8. Final Model Training & Performance Evaluation
+#========================================================
+
+
+# we initialize the final model with the best hyperparameters found by Optuna
+bests_params = study.best_params
+print(f"Construyendo modelo definitivo con: {bests_params}")
+
+
+modelo_final = RedNeuronalSeguros(
+    input_size=X_train.shape[1], 
+    n1=bests_params['n1'], 
+    n2=bests_params['n2']
+)
+
+
+# setup the final optimizer and criterion 
+criterion_final = nn.MSELoss()
+optimizer_final = torch.optim.Adam(modelo_final.parameters(), lr=bests_params['lr'])
+
+ 
+#final training session
+print("\nStarting final training...")
+historial_train, historial_val = entrenar_modelo(
+    modelo_final, criterion_final, optimizer_final, 
+    X_train, y_train, X_test, y_test, 
+    epochs=600  # we put more epochs for letting him learn at maximum 
+)
+
+# final test set predictions
+modelo_final.eval()
+with torch.no_grad():
+    predicciones_finales = modelo_final(X_test)
+
+# calculate final performance metrics in Dollars
+rmse_final = mean_squared_error(y_test, predicciones_finales.numpy()) ** 0.5
+
+print(f"\n--- FINAL PERFORMANCE COMPARISON ---")
+print(f"Baseline Linear Regression RMSE: ${rmse_base:.2f}")
+print(f"Optimized Neural Network RMSE:   ${final_rmse:.2f}")
+
+
+
+#========================================================
+# 9. Final Visualizations
+#========================================================
+
+
+# Learning Curve: Checking for Overfitting
+plt.figure(figsize=(10, 6))
+plt.plot(historial_train, label='Training Loss')
+plt.plot(historial_val, label='Validation Loss')
+plt.title('Learning Curves: Generalization Assessment')
+plt.xlabel('Epochs')
+plt.ylabel('Loss (MSE)')
+plt.legend()
+plt.show()
+
+
+# Predicted vs Actual Values Scatter Plot
+# We are gonna see visualizing how the points deviate from reality
+
+plt.figure(figsize=(8, 8))
+plt.scatter(y_test, predicciones_finales, alpha=0.5, color='green')
+plt.plot([y_test.min(), y_test.max()], [y_test.min(), y_test.max()], 'r--', lw=2)
+plt.title('Predicted vs Actual Values (Set de Test)')
+plt.xlabel('Actual Value($)')
+plt.ylabel('AI Prediction($)')
+plt.show()
+
