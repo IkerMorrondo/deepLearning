@@ -312,7 +312,7 @@ rmse_final = mean_squared_error(y_test, predicciones_finales.numpy()) ** 0.5
 
 print(f"\n--- FINAL PERFORMANCE COMPARISON ---")
 print(f"Baseline Linear Regression RMSE: ${rmse_base:.2f}")
-print(f"Optimized Neural Network RMSE:   ${final_rmse:.2f}")
+print(f"Optimized Neural Network RMSE:   ${rmse_final:.2f}")
 
 
 
