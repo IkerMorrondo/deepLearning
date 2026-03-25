@@ -32,17 +32,17 @@ print("\nLoading and preprocessing data...")
 
 df = pd.read_csv('/home/ikermorrondo/deepLearning/1assign/insurance.csv')
 
-# Transformamos categorías en columnas de 0 y 1 ya que nuestro modelo no puede trabajar con texto porque las redes neuronales trabajan con números, no con texto.
-df = pd.get_dummies(df, columns=['sex', 'smoker', 'region'], drop_first=True)   #el drop_first=True es para evitar redundacia, es decir que si no es hombre, entonces es mujer, si no es fumador, entonces es no fumador, etc.
+# Transform categorical columns into 0 and 1 columns since our model cannot work with text because neural networks work with numbers, not text.
+df = pd.get_dummies(df, columns=['sex', 'smoker', 'region'], drop_first=True)   # drop_first=True avoids redundancy, meaning if it's not male, then it's female, if not a smoker, then it's a non-smoker, etc.
 
-# Separamos las características (X) de la variable objetivo (y) que es 'charges'. 
+# Separate the features (X) from the target variable (y) which is 'charges'.
 X = df.drop('charges', axis=1).values
 y = df['charges'].values.reshape(-1, 1)
 
-# Separamos 80% para entrenar y 20% para el resto
+# Split the data into training (80%) and temporary (20%) sets
 X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Ese 20% lo dividimos en dos: 10% para Validar y 10% para el Test final
+# Split that 20% into two: 10% for Validation and 10% for the final Test
 X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
 
 #========================================================
@@ -64,27 +64,27 @@ print("\n--- Some plots ---")
 #Barchart 
 plt.figure(figsize=(10, 6))
 sns.histplot(df['charges'], kde=True, color='blue', bins=50)
-plt.title('Distribución de los Costos de Seguro (Charges)')
-plt.xlabel('Cargos ($)')
-plt.ylabel('Frecuencia')
+plt.title('Distribution of Insurance Costs (Charges)')
+plt.xlabel('Charges ($)')
+plt.ylabel('Frequency')
 plt.show()
 
 #Correlation matrix
 plt.figure(figsize=(10, 8))
-# Calculamos la correlación
+# We calculate the correlation matrix to see how the features relate to each other and to the target variable 'charges'
 correlacion = df.corr()
-# Dibujamos un mapa de calor (heatmap)
+# We draw a heatmap to visualize the correlation matrix.
 sns.heatmap(correlacion, annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5)
-plt.title('Matriz de Correlación de las Variables')
+plt.title('Correlation Matrix of the Variables')
 plt.show()
 
 fig, axes = plt.subplots(1, 2, figsize=(15, 6))
 
-# Boxplot: Fumador vs Cargos
+# Boxplot: Smoker vs Charges
 sns.boxplot(ax=axes[0], x='smoker_yes', y='charges', data=df, palette='Set2')
-axes[0].set_title('Impacto de Fumar en los Costos Médicos')
-axes[0].set_xlabel('Fumador')
-axes[0].set_ylabel('Cargos ($)')
+axes[0].set_title('Impact of Smoking on Medical Costs')
+axes[0].set_xlabel('Smoker')
+axes[0].set_ylabel('Charges ($)')
 plt.tight_layout()
 plt.show()
 
@@ -122,15 +122,15 @@ X_test, y_test = torch.FloatTensor(X_test), torch.FloatTensor(y_test)
 
 
 # Train a traditional Linear Regression model as a benchmark
-modelo_base = LinearRegression()
-modelo_base.fit(X_train.numpy(), y_train.numpy())
+base_model = LinearRegression()
+base_model.fit(X_train.numpy(), y_train.numpy())
 
 # Predict using the test set
-predicciones_base = modelo_base.predict(X_test.numpy())
+base_predictions = base_model.predict(X_test.numpy())
 
 # Calculate evaluation metrics
-rmse_base = np.sqrt(mean_squared_error(y_test.numpy(), predicciones_base))
-mae_base = mean_absolute_error(y_test.numpy(), predicciones_base)
+rmse_base = np.sqrt(mean_squared_error(y_test.numpy(), base_predictions))
+mae_base = mean_absolute_error(y_test.numpy(), base_predictions)
 
 print("--- BASELINE MODEL RESULTS (LINEAR REGRESSION) ---")
 print(f"Base RMSE: ${rmse_base:.2f}")
@@ -165,7 +165,7 @@ class RedNeuronalSeguros(nn.Module):
 
 
 
-def entrenar_modelo(modelo, criterion, optimizer, X_train, y_train, X_test, y_test, epochs=500):
+def model_training(modelo, criterion, optimizer, X_train, y_train, X_test, y_test, epochs=500):
     historial_train = []
     historial_val = []
     
@@ -204,18 +204,18 @@ def entrenar_modelo(modelo, criterion, optimizer, X_train, y_train, X_test, y_te
 input_size = X_train.shape[1] 
 modelo_dl = RedNeuronalSeguros(input_size)
 
-# define de loss and optimizer 
+# define the loss and optimizer 
 criterion = nn.MSELoss()
 optimizer = torch.optim.Adam(modelo_dl.parameters(), lr=0.01)
 
 print("\nStarting initial training...")
-historial_train, historial_val = entrenar_modelo(
+historial_train, historial_val = model_training(
     modelo_dl, criterion, optimizer, 
     X_train, y_train, X_test, y_test, 
     epochs=500
 )
 
-# Final predctions for graph 2 
+# Final predictions for graph 2 
 modelo_dl.eval()
 with torch.no_grad():
     predicciones_finales = modelo_dl(X_test)
@@ -296,7 +296,7 @@ optimizer_final = torch.optim.Adam(modelo_final.parameters(), lr=bests_params['l
  
 #final training session
 print("\nStarting final training...")
-historial_train, historial_val = entrenar_modelo(
+historial_train, historial_val = model_training(
     modelo_final, criterion_final, optimizer_final, 
     X_train, y_train, X_test, y_test, 
     epochs=600  # we put more epochs for letting him learn at maximum 
