@@ -30,7 +30,7 @@ print("Environment ready.")
 
 print("\nLoading and preprocessing data...")
 
-df = pd.read_csv('insurance.csv')
+df = pd.read_csv('1assign/insurance.csv')
 
 # Transform categorical columns into 0 and 1 columns since our model cannot work with text because neural networks work with numbers, not text.
 df = pd.get_dummies(df, columns=['sex', 'smoker', 'region'], drop_first=True)   # drop_first=True avoids redundancy, meaning if it's not male, then it's female, if not a smoker, then it's a non-smoker, etc.
