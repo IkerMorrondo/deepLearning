@@ -155,6 +155,8 @@ class RedNeuronalSeguros(nn.Module):
         # Using Kaiming Uniform initialization for layers with ReLU activation
         init.kaiming_uniform_(self.capa1.weight, nonlinearity='relu')
         init.kaiming_uniform_(self.capa2.weight, nonlinearity='relu')
+        init.kaiming_uniform_(self.capa_salida.weight, nonlinearity='relu')
+
         
     def forward(self, x):
         x = self.relu(self.capa1(x))
