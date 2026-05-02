@@ -28,3 +28,8 @@ dependencies = [
     "seaborn>=0.13.2",
     "optuna>=4.7.0",
 ]
+
+[tool.uv.workspace]
+members = [
+    "2assign",
+]
