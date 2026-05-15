@@ -30,6 +30,7 @@ dependencies = [
     "pip>=26.1",
     "torchvision>=0.17.2",
     "pillow>=12.1.0",
+    "statsmodels>=0.14.6",
 ]
 
 [tool.uv.workspace]
