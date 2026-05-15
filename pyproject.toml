@@ -35,5 +35,5 @@ dependencies = [
 
 [tool.uv.workspace]
 members = [
-    "2assign",
+    "2assign","3assign",
 ]
