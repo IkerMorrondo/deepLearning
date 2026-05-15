@@ -15,6 +15,7 @@ resolution-markers = [
 [manifest]
 members = [
     "assign2",
+    "assign3",
     "deeplearning",
 ]
 
@@ -54,6 +55,11 @@ wheels = [
 name = "assign2"
 version = "0.1.0"
 source = { virtual = "2assign" }
+
+[[package]]
+name = "assign3"
+version = "0.1.0"
+source = { virtual = "3assign" }
 
 [[package]]
 name = "asttokens"
